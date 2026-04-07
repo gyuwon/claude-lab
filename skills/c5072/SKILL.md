@@ -39,7 +39,7 @@ Create a commit with a clear, descriptive message based on staged changes.
 - Categorize changes (new feature, enhancement, bug fix, refactoring, etc.)
 - Write a commit message following the 50/72 rule:
   - Subject line: max 50 characters
-  - Body lines: max 72 characters
+  - Body: wrap lines only when they would exceed 72 characters. Do NOT insert line breaks prematurely — fill each line close to 72 characters before wrapping. Short lines (under ~50 characters) followed by another line are a sign of bad wrapping.
 - If `short` parameter is provided, create the most concise message possible
 - Present the draft message to the user for review
 - STOP and wait for user approval before proceeding
