@@ -4,14 +4,14 @@ description: Create a commit with a message following the 50/72 rule from staged
 allowed-tools: Bash(git *), Bash(bash *)
 ---
 
-# Commit — Create a Commit from Staged Changes
+# c5072 — Commit with 50/72 Rule
 
 Create a commit with a clear, descriptive message based on staged changes.
 
 ## Syntax
 
 ```
-/commit [topic: <topic>] [short]
+/c5072 [topic: <topic>] [short]
 ```
 
 **Parameters:**
