@@ -1,0 +1,13 @@
+{
+  "name": "gyuwon-claude-lab",
+  "owner": {
+    "name": "Gyuwon Yi",
+    "email": "gyuwon@live.com"
+  },
+  "plugins": [
+    {
+      "name": "gyuwon-claude-lab",
+      "source": "./"
+    }
+  ]
+}
