@@ -11,13 +11,14 @@ Create a commit with a clear, descriptive message based on staged changes.
 ## Syntax
 
 ```
-/c5072 [topic: <topic>] [short] [add-all]
+/c5072 [topic: <topic>] [short] [add-all] [lang: <language>]
 ```
 
 **Parameters:**
 - `topic` (optional): Area of focus for the commit. If not provided, infer from changes.
 - `short` (optional): Create the shortest possible commit message while maintaining clarity.
 - `add-all` (optional): Run `git add .` to stage all changes before committing.
+- `lang` (optional): Language for the commit message (e.g., `English`, `Korean`). Overrides auto-detection.
 
 ## Workflow
 
@@ -34,10 +35,11 @@ Create a commit with a clear, descriptive message based on staged changes.
 
 ### 3. Detect Language
 
-- Run `git log -3 --format=%s` to examine the 3 most recent commit messages
+- If `lang` parameter is provided, use that language directly
+- Otherwise, run `git log -3 --format=%s` to examine the 3 most recent commit messages
 - Determine the dominant language used (e.g., English, Korean)
 - If the language is unclear or there are no prior commits, default to English
-- Write the commit message in the detected language
+- Write the commit message in the detected (or specified) language
 
 ### 4. Draft Message
 
