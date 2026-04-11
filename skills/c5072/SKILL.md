@@ -11,30 +11,35 @@ Create a commit with a clear, descriptive message based on staged changes.
 ## Syntax
 
 ```
-/c5072 [topic: <topic>] [short]
+/c5072 [topic: <topic>] [short] [add-all]
 ```
 
 **Parameters:**
 - `topic` (optional): Area of focus for the commit. If not provided, infer from changes.
 - `short` (optional): Create the shortest possible commit message while maintaining clarity.
+- `add-all` (optional): Run `git add .` to stage all changes before committing.
 
 ## Workflow
 
-### 1. Pre-Commit Validation
+### 1. Stage Changes (if `add-all` flag is provided)
+
+- Run `git add .` to stage all changes
+
+### 2. Pre-Commit Validation
 
 - Run `git diff --staged` to examine ONLY what is already staged
 - If no staged changes exist, STOP and inform the user
 - If `topic` specified, confirm staged changes match the topic
 - Scan for secrets, keys, or sensitive information — abort if found
 
-### 2. Detect Language
+### 3. Detect Language
 
 - Run `git log -3 --format=%s` to examine the 3 most recent commit messages
 - Determine the dominant language used (e.g., English, Korean)
 - If the language is unclear or there are no prior commits, default to English
 - Write the commit message in the detected language
 
-### 3. Draft Message
+### 4. Draft Message
 
 - Categorize changes (new feature, enhancement, bug fix, refactoring, etc.)
 - Write a commit message following the 50/72 rule:
@@ -44,7 +49,7 @@ Create a commit with a clear, descriptive message based on staged changes.
 - Present the draft message to the user for review
 - STOP and wait for user approval before proceeding
 
-### 4. Create Commit
+### 5. Create Commit
 
 - Execute commit using heredoc format:
   ```
@@ -56,7 +61,7 @@ Create a commit with a clear, descriptive message based on staged changes.
   )"
   ```
 
-### 5. Validate
+### 6. Validate
 
 - Run `${CLAUDE_SKILL_DIR}/scripts/check-50-72-rule.sh` to verify the commit message
 - If validation fails, use `git commit --amend` with corrected message
@@ -65,5 +70,5 @@ Create a commit with a clear, descriptive message based on staged changes.
 
 ## Important
 
-- Do NOT stage files. This command operates ONLY on already staged changes.
+- Do NOT stage files unless the `add-all` flag is explicitly provided.
 - Do NOT proceed without user approval of the commit message.
