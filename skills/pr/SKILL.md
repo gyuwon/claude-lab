@@ -9,10 +9,11 @@ allowed-tools: Bash(git *), Bash(gh *), Read, Write
 ## Syntax
 
 ```
-/pr
+/pr [head]
 ```
 
-No parameters. The skill prompts for any needed input during execution.
+**Parameters:**
+- `head` (optional): Skip commit selection and use HEAD as the target commit.
 
 ## Workflow
 
@@ -37,6 +38,7 @@ No parameters. The skill prompts for any needed input during execution.
 
 - Run `git log origin/main..HEAD --oneline` to list commits in `[origin/main, HEAD]` range (newest first)
 - If the output is empty, report "origin/main과 차이가 없습니다." and STOP
+- If `head` parameter is provided, skip selection and use HEAD as the target commit
 - Number them 1..N (newest → oldest). Entry 1 is HEAD.
   ```
   커밋을 선택하세요 (PR 대상 커밋):
