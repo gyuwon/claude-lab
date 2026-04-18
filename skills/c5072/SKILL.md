@@ -65,9 +65,10 @@ Create a commit with a clear, descriptive message based on staged changes.
 
 ### 6. Validate
 
-- Run `${CLAUDE_SKILL_DIR}/scripts/check-50-72-rule.sh` to verify the commit message
-- If validation fails, use `git commit --amend` with corrected message
-- Repeat until validation passes (up to 3 attempts)
+- Run `${CLAUDE_SKILL_DIR}/scripts/check-50-72-rule.sh` to verify the subject and body widths
+- Run `${CLAUDE_SKILL_DIR}/scripts/check-premature-wrap.sh` to verify no premature line breaks in the body
+- If either validation fails, use `git commit --amend` with corrected message
+- Repeat until both pass (up to 3 attempts)
 - If still failing after 3 attempts, STOP and request review
 
 ## Important
