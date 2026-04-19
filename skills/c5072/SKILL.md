@@ -11,18 +11,18 @@ Create a commit with a clear, descriptive message based on staged changes.
 ## Syntax
 
 ```
-/c5072 [topic: <topic>] [short] [add-all] [lang: <language>]
+/c5072 [topic: <topic>] [short] [add-all|aa] [lang: <language>]
 ```
 
 **Parameters:**
 - `topic` (optional): Area of focus for the commit. If not provided, infer from changes.
 - `short` (optional): Create the shortest possible commit message while maintaining clarity.
-- `add-all` (optional): Run `git add .` to stage all changes before committing.
+- `add-all` (alias: `aa`, optional): Run `git add .` to stage all changes before committing.
 - `lang` (optional): Language for the commit message (e.g., `English`, `Korean`). Overrides auto-detection.
 
 ## Workflow
 
-### 1. Stage Changes (if `add-all` flag is provided)
+### 1. Stage Changes (if `add-all` or `aa` flag is provided)
 
 - Run `git add .` to stage all changes
 
@@ -73,5 +73,5 @@ Create a commit with a clear, descriptive message based on staged changes.
 
 ## Important
 
-- Do NOT stage files unless the `add-all` flag is explicitly provided.
+- Do NOT stage files unless the `add-all` (or `aa`) flag is explicitly provided.
 - Do NOT proceed without user approval of the commit message.
