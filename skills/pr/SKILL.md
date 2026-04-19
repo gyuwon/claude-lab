@@ -57,8 +57,13 @@ allowed-tools: Bash(git *), Bash(gh *), Read, Write
 ### 6. Derive branch name
 
 - Take the subject line of the target commit: `git log -1 --format=%s <target>`
-- Slugify: lowercase, replace spaces and non-alphanumeric chars with `-`, collapse consecutive `-`, strip leading/trailing `-`
-- Truncate to 50 characters
+- Slugify to kebab-case using only ASCII lowercase letters, digits, and `-`:
+  - Lowercase the subject
+  - Replace every character outside `[a-z0-9]` with `-` (this drops Korean and other non-ASCII characters as well as punctuation)
+  - Collapse consecutive `-` into a single `-`
+  - Strip leading and trailing `-`
+- Truncate the slug to 50 characters
+- If the resulting slug is empty (e.g., the subject contained no ASCII letters or digits), fall back to the commit's short hash from `git rev-parse --short <target>`
 - Branch name = `<prefix>/<slug>`
 
 ### 7. Create temp branch and push
