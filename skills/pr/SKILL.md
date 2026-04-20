@@ -20,7 +20,7 @@ allowed-tools: Bash(git *), Bash(gh *), Read, Write
 ### 1. Load prefix
 
 - Read `${CLAUDE_SKILL_DIR}/config.json`
-- If the file is missing or `prefix` is absent, ask the user: "브랜치 prefix를 입력해주세요: (예: `alice` → 브랜치명은 `alice/<커밋-제목-slug>` 형태가 됩니다)"
+- If the file is missing or `prefix` is absent, ask the user: "Please enter a branch prefix: (e.g., `alice` → branch name becomes `alice/<commit-subject-slug>`)"
 - Save the answer back to `${CLAUDE_SKILL_DIR}/config.json` as `{"prefix": "<answer>"}`
 - Use this value as `<prefix>` throughout
 
@@ -37,12 +37,12 @@ allowed-tools: Bash(git *), Bash(gh *), Read, Write
 ### 4. Show commits and ask which to use
 
 - Run `git log origin/main..HEAD --oneline` to list commits in `[origin/main, HEAD]` range (newest first)
-- If the output is empty, report "origin/main과 차이가 없습니다." and STOP
+- If the output is empty, report "No differences from origin/main." and STOP
 - If `head` (or `h`) parameter is provided, skip selection and use HEAD as the target commit
 - Number them 1..N (newest → oldest). Entry 1 is HEAD.
   ```
-  커밋을 선택하세요 (PR 대상 커밋):
-  1) <hash> <subject>   ← HEAD (최신)
+  Select a commit (PR target commit):
+  1) <hash> <subject>   ← HEAD (newest)
   2) <hash> <subject>
   ...
   N) <hash> <subject>   ← oldest
