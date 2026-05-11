@@ -1,6 +1,6 @@
 ---
 name: pr
-description: Create a PR against origin/main, or with `respond` analyze PR review comments and either commit fixes (one per comment) or post discussion replies.
+description: Create a PR against origin/main; with `respond`, analyze review comments and either commit fixes or post replies; with `fanout`, find commits in the range that can each stand alone and create one PR per qualifying commit.
 allowed-tools: Bash(git *), Bash(gh *), Read, Write, Edit
 ---
 
@@ -26,6 +26,16 @@ allowed-tools: Bash(git *), Bash(gh *), Read, Write, Edit
 **Parameters:**
 - `<pr>` (optional): PR number or URL. Defaults to the current branch's PR (`gh pr view --json number`).
 - `--dry` (optional): Print analysis and planned actions only; do not edit, commit, push, or post replies.
+
+### Fan out independent commits into single-commit PRs
+
+```
+/pr fanout [<base>] [--dry]
+```
+
+**Parameters:**
+- `<base>` (optional): Base ref to test independence against. Defaults to `origin/main`.
+- `--dry` (optional): Print the independence report only; do not create branches, push, or open PRs.
 
 ## Workflow: Create PR (default)
 
@@ -173,6 +183,101 @@ Post replies for every item (both `[FIX]` and `[REPLY]`):
 
 - If the PR branch differs from the original, run `git checkout <original-branch>`.
 
+## Workflow: Fan out independent commits
+
+### 1. Preflight
+
+- Resolve `<base>` (default `origin/main`).
+- Run `git fetch origin`.
+- Run `git status --porcelain`. If non-empty, STOP (working tree must be clean).
+- Run `git merge-base --is-ancestor <base> HEAD`. If non-zero exit, STOP.
+- Run `git log --format=%P <base>..HEAD`. If any line has two or more fields, STOP (merge commits in range; linear history only).
+- Run `git log --format=%H <base>..HEAD`. If empty, STOP.
+- Load `<prefix>` from `${CLAUDE_SKILL_DIR}/config.json` (same load/prompt/save logic as create-PR mode step 1).
+- Remember the original branch name (`git rev-parse --abbrev-ref HEAD`).
+
+### 2. Independence check
+
+- Create an isolated worktree at `<base>`:
+  ```
+  WT=$(mktemp -d)
+  git worktree add --detach "$WT" <base>
+  ```
+- For each SHA in `git log <base>..HEAD --format=%H --reverse`:
+  - In `$WT`, attempt `git cherry-pick --no-commit <sha>`.
+  - On success: mark `[OK]`, then `git reset --hard <base>` to discard.
+  - On failure: capture conflicted paths from `git diff --name-only --diff-filter=U`, run `git cherry-pick --abort`, mark `[DEP]` with those paths.
+- Always clean up: `git worktree remove --force "$WT"`.
+
+### 3. Report
+
+Print a single table:
+
+```
+[OK]  <short-sha>  <subject>
+[DEP] <short-sha>  <subject>
+       conflicts in: <file>, <file>, ...
+```
+
+If `--dry` was given, print the table and STOP.
+If zero `[OK]` commits remain, report "No standalone-able commits." and STOP.
+
+### 4. Select
+
+- Multi-select prompt over the `[OK]` commits. Default: all selected. `[DEP]` commits are not selectable.
+- If the selection is empty, STOP.
+
+### 5. Draft each PR
+
+For each selected commit:
+- Derive branch name: `<prefix>/<subject-slug>` using the same slug rules as create-PR mode step 6 (fall back to short hash if slug is empty).
+- Detect language from `git log -3 --format=%s`.
+- Draft a PR title (≤70 chars) and body (summary bullets, NO test plan section), reusing the commit subject/body as the source.
+
+Print all drafts in a single batch:
+
+```
+PR 1: <branch-name>
+  source:  <short-sha>  <subject>
+  title:   <title>
+  body:    <body>
+
+PR 2: <branch-name>
+  source:  <short-sha>  <subject>
+  title:   <title>
+  body:    <body>
+...
+```
+
+### 6. Batch approval
+
+- STOP and wait for explicit approval. If rejected, STOP without making any changes.
+
+### 7. Execute (after approval)
+
+Maintain two result lists: `created` and `skipped`. For each drafted PR, in selection order:
+1. `git checkout -b <branch-name> <base>`
+2. `git cherry-pick <sha>` — if it fails (shouldn't, since step 2 verified clean), `git cherry-pick --abort`, `git checkout <original-branch>`, `git branch -D <branch-name>`, record in `skipped` with the reason, continue.
+3. `git push origin <branch-name>` — on failure, `git checkout <original-branch>`, `git branch -D <branch-name>`, record in `skipped`, continue.
+4. `gh pr create --base <base-short> --head <branch-name> --title <title> --body <body>` where `<base-short>` is the branch portion of `<base>` (e.g., `main` from `origin/main`). On failure, record in `skipped` and continue (leave the pushed branch in place for manual recovery).
+5. Capture PR URL into `created`.
+6. `git checkout <original-branch>`.
+7. `git branch -d <branch-name>` (local cleanup).
+
+### 8. Summary
+
+Print:
+
+```
+Created:
+  - <pr-url>  <short-sha>  <subject>
+  ...
+
+Skipped:
+  - <short-sha>  <reason>
+  ...
+```
+
 ## Important
 
 - Never push to origin/main directly
@@ -182,3 +287,7 @@ Post replies for every item (both `[FIX]` and `[REPLY]`):
 - `respond` mode: always skip the current user's own comments and threads they have already replied to
 - `respond` mode: `--dry` must not edit, commit, push, or post anything
 - `respond` mode: one `[FIX]` commit per comment — never bundle multiple comments into a single commit
+- `fanout` mode: working tree must be clean; refuses to run otherwise
+- `fanout` mode: linear history only — STOP if merge commits exist in `<base>..HEAD`
+- `fanout` mode: `--dry` must not create branches, push, or open PRs
+- `fanout` mode: a failure on one PR is recorded and the remaining selections continue; pushed-but-unopened branches are left on the remote for manual recovery
