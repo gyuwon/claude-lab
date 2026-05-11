@@ -205,29 +205,51 @@ Post replies for every item (both `[FIX]` and `[REPLY]`):
   ```
 - For each SHA in `git log <base>..HEAD --format=%H --reverse`:
   - In `$WT`, attempt `git cherry-pick --no-commit <sha>`.
-  - On success: mark `[OK]`, then `git reset --hard <base>` to discard.
-  - On failure: capture conflicted paths from `git diff --name-only --diff-filter=U`, run `git cherry-pick --abort`, mark `[DEP]` with those paths.
+  - On conflict: capture conflicted paths from `git diff --name-only --diff-filter=U`, run `git cherry-pick --abort`, mark `[DEP]` with those paths.
+  - On success: run `git diff --cached --quiet`.
+    - Exit 0 (no staged changes) → the patch is already in `<base>`. Mark `[MERGED]`.
+    - Exit 1 → mark `[OK]` candidate.
+  - After classification, `git reset --hard <base>` to discard the worktree state.
 - Always clean up: `git worktree remove --force "$WT"`.
 
-### 3. Report
+### 3. Match against existing open PRs
+
+For every `[OK]` candidate, check whether an open PR already represents the same change:
+
+- Derive `<base-short>` (branch portion of `<base>`, e.g. `main` from `origin/main`).
+- Query: `gh pr list --base <base-short> --state open --json number,url,headRefOid --limit 200`.
+- For each returned PR:
+  - `git fetch origin <headRefOid>` so the commit is locally available.
+  - Compute `<pr-patch-id>` = `git show <headRefOid> | git patch-id --stable | cut -d' ' -f1`.
+  - Build a map `{<pr-patch-id> → <pr-url>}`.
+- For each `[OK]` candidate `<sha>`:
+  - Compute `<candidate-patch-id>` = `git show <sha> | git patch-id --stable | cut -d' ' -f1`.
+  - If `<candidate-patch-id>` is in the map, demote to `[EXISTS]` with the matched PR URL.
+
+This relies on fanout PRs being single-commit-on-base (which is exactly what this skill produces), so matching the PR head commit's patch-id is sufficient.
+
+### 4. Report
 
 Print a single table:
 
 ```
-[OK]  <short-sha>  <subject>
-[DEP] <short-sha>  <subject>
-       conflicts in: <file>, <file>, ...
+[OK]     <short-sha>  <subject>
+[EXISTS] <short-sha>  <subject>  — open PR: <pr-url>
+[MERGED] <short-sha>  <subject>  — already in <base>
+[DEP]    <short-sha>  <subject>
+          conflicts in: <file>, <file>, ...
 ```
 
 If `--dry` was given, print the table and STOP.
-If zero `[OK]` commits remain, report "No standalone-able commits." and STOP.
+If zero `[OK]` commits remain, report "No new standalone-able commits." and STOP.
 
-### 4. Select
+### 5. Select
 
-- Multi-select prompt over the `[OK]` commits. Default: all selected. `[DEP]` commits are not selectable.
+- Multi-select prompt over the `[OK]` commits. Default: all selected.
+- `[EXISTS]`, `[MERGED]`, and `[DEP]` commits are listed for context but are not selectable.
 - If the selection is empty, STOP.
 
-### 5. Draft each PR
+### 6. Draft each PR
 
 For each selected commit:
 - Derive branch name: `<prefix>/<subject-slug>` using the same slug rules as create-PR mode step 6 (fall back to short hash if slug is empty).
@@ -249,11 +271,11 @@ PR 2: <branch-name>
 ...
 ```
 
-### 6. Batch approval
+### 7. Batch approval
 
 - STOP and wait for explicit approval. If rejected, STOP without making any changes.
 
-### 7. Execute (after approval)
+### 8. Execute (after approval)
 
 Maintain two result lists: `created` and `skipped`. For each drafted PR, in selection order:
 1. `git checkout -b <branch-name> <base>`
@@ -264,7 +286,7 @@ Maintain two result lists: `created` and `skipped`. For each drafted PR, in sele
 6. `git checkout <original-branch>`.
 7. `git branch -d <branch-name>` (local cleanup).
 
-### 8. Summary
+### 9. Summary
 
 Print:
 
@@ -291,3 +313,5 @@ Skipped:
 - `fanout` mode: linear history only — STOP if merge commits exist in `<base>..HEAD`
 - `fanout` mode: `--dry` must not create branches, push, or open PRs
 - `fanout` mode: a failure on one PR is recorded and the remaining selections continue; pushed-but-unopened branches are left on the remote for manual recovery
+- `fanout` mode: commits whose patch is already in `<base>` are marked `[MERGED]` and excluded from selection
+- `fanout` mode: commits whose patch matches the head of an open PR (by `git patch-id --stable`) are marked `[EXISTS]` with that PR's URL and excluded from selection
