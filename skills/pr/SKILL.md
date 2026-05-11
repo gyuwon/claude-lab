@@ -1,12 +1,14 @@
 ---
 name: pr
-description: Create a PR against origin/main. Fetches origin, rebases onto origin/main, lets you pick a commit (HEAD or one from the range), creates a temp branch, pushes, opens a PR, then deletes the temp branch locally.
-allowed-tools: Bash(git *), Bash(gh *), Read, Write
+description: Create a PR against origin/main, or with `respond` analyze PR review comments and either commit fixes (one per comment) or post discussion replies.
+allowed-tools: Bash(git *), Bash(gh *), Read, Write, Edit
 ---
 
-# pr — Create PR against origin/main
+# pr — Create PR or respond to review comments
 
 ## Syntax
+
+### Create PR (default)
 
 ```
 /pr [head|h]
@@ -15,7 +17,17 @@ allowed-tools: Bash(git *), Bash(gh *), Read, Write
 **Parameters:**
 - `head` (alias: `h`, optional): Skip commit selection and use HEAD as the target commit.
 
-## Workflow
+### Respond to review comments
+
+```
+/pr respond [<pr>] [--dry]
+```
+
+**Parameters:**
+- `<pr>` (optional): PR number or URL. Defaults to the current branch's PR (`gh pr view --json number`).
+- `--dry` (optional): Print analysis and planned actions only; do not edit, commit, push, or post replies.
+
+## Workflow: Create PR (default)
 
 ### 1. Load prefix
 
@@ -91,9 +103,82 @@ allowed-tools: Bash(git *), Bash(gh *), Read, Write
 - Run `git checkout -` to return to the previous branch
 - Run `git branch -d <branch-name>` to delete the temp branch locally
 
+## Workflow: Respond to review comments
+
+### 1. Identify PR
+
+- If `<pr>` argument is provided, use it (accept number or URL).
+- Otherwise, run `gh pr view --json number,headRefName,headRepository` for the current branch.
+- If neither resolves a PR, report the error and STOP.
+
+### 2. Checkout PR branch
+
+- Remember the original branch name from `git rev-parse --abbrev-ref HEAD`.
+- If not already on the PR head ref, run `git checkout <pr-head-ref>`.
+- Run `git pull --ff-only` to sync with the remote PR branch.
+- If checkout or pull fails, return to the original branch and STOP.
+
+### 3. Collect unresolved comments
+
+- Line review comments: `gh api repos/{owner}/{repo}/pulls/{n}/comments`
+- Issue (general) comments: `gh api repos/{owner}/{repo}/issues/{n}/comments`
+- Exclude:
+  - Resolved review threads
+  - Comments authored by the current user (`gh api user --jq .login`)
+  - Threads where the current user has already replied
+- If nothing remains, report "No unaddressed comments." and STOP.
+
+### 4. Classify and draft per comment
+
+For each remaining comment:
+- Read the file/line context referenced by the comment (if any).
+- Classify intent:
+  - `[FIX]` — the comment asks for a code change. Draft an edit plan, a commit message following the 50/72 rule, and a reply referencing the upcoming commit.
+  - `[REPLY]` — opinion / question / discussion only. Draft a reply.
+- Detect language for replies and commit messages from `git log -3 --format=%s` (Korean if any Korean appears, otherwise English).
+
+### 5. Batch approval
+
+- Print all items in a single table:
+  ```
+  [FIX]   #<id>  <file>:<line>  "<comment excerpt>"
+          → commit: <subject>
+          → diff:   <summary>
+          → reply:  <draft>
+
+  [REPLY] #<id>  <file>:<line>  "<comment excerpt>"
+          → reply:  <draft>
+  ```
+- STOP and wait for explicit approval. If rejected, STOP without making any changes.
+- If `--dry` was given, print the table and STOP regardless.
+
+### 6. Execute (after approval)
+
+For each `[FIX]` item, in order:
+1. Apply the edit.
+2. `git add` only the files touched by this comment.
+3. `git commit` with the drafted 50/72 message.
+4. Record the resulting commit hash from `git rev-parse HEAD`.
+
+After all `[FIX]` commits:
+- Run `git push origin <pr-head-ref>` once.
+- If push fails, STOP and report — do not attempt to post replies.
+
+Post replies for every item (both `[FIX]` and `[REPLY]`):
+- Line comment thread: `gh api -X POST repos/{owner}/{repo}/pulls/{n}/comments/{id}/replies -f body=<reply>`
+- Issue (general) comment: `gh api -X POST repos/{owner}/{repo}/issues/{n}/comments -f body=<reply>` (no native thread; quote or reference the original)
+- For `[FIX]` items, include the recorded commit hash in the reply body.
+
+### 7. Return to original branch
+
+- If the PR branch differs from the original, run `git checkout <original-branch>`.
+
 ## Important
 
 - Never push to origin/main directly
 - Never force-push
-- The temp branch is only ever deleted locally; the remote branch backing the PR stays until the PR is merged/closed
-- Do NOT proceed past step 4, step 8 (draft review) without explicit user approval
+- The temp branch (create-PR mode) is only ever deleted locally; the remote branch backing the PR stays until the PR is merged/closed
+- Do NOT proceed past step 4 or step 8 (create-PR mode), or step 5 (respond mode) without explicit user approval
+- `respond` mode: always skip the current user's own comments and threads they have already replied to
+- `respond` mode: `--dry` must not edit, commit, push, or post anything
+- `respond` mode: one `[FIX]` commit per comment — never bundle multiple comments into a single commit
