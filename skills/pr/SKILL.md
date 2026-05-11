@@ -280,11 +280,12 @@ PR 2: <branch-name>
 Maintain two result lists: `created` and `skipped`. For each drafted PR, in selection order:
 1. `git checkout -b <branch-name> <base>`
 2. `git cherry-pick <sha>` — if it fails (shouldn't, since step 2 verified clean), `git cherry-pick --abort`, `git checkout <original-branch>`, `git branch -D <branch-name>`, record in `skipped` with the reason, continue.
-3. `git push origin <branch-name>` — on failure, `git checkout <original-branch>`, `git branch -D <branch-name>`, record in `skipped`, continue.
-4. `gh pr create --base <base-short> --head <branch-name> --title <title> --body <body>` where `<base-short>` is the branch portion of `<base>` (e.g., `main` from `origin/main`). On failure, record in `skipped` and continue (leave the pushed branch in place for manual recovery).
-5. Capture PR URL into `created`.
-6. `git checkout <original-branch>`.
-7. `git branch -d <branch-name>` (local cleanup).
+3. Verify single-commit invariant: `git rev-list --count <base>..HEAD` must equal exactly `1`. If not, `git checkout <original-branch>`, `git branch -D <branch-name>`, record in `skipped` with reason `expected 1 commit ahead of <base>, found <N>`, continue. **Do not push** when this check fails.
+4. `git push origin <branch-name>` — on failure, `git checkout <original-branch>`, `git branch -D <branch-name>`, record in `skipped`, continue.
+5. `gh pr create --base <base-short> --head <branch-name> --title <title> --body <body>` where `<base-short>` is the branch portion of `<base>` (e.g., `main` from `origin/main`). On failure, record in `skipped` and continue (leave the pushed branch in place for manual recovery).
+6. Capture PR URL into `created`.
+7. `git checkout <original-branch>`.
+8. `git branch -d <branch-name>` (local cleanup).
 
 ### 9. Summary
 
@@ -299,6 +300,8 @@ Skipped:
   - <short-sha>  <reason>
   ...
 ```
+
+Omit any section whose list is empty.
 
 ## Important
 
@@ -315,3 +318,4 @@ Skipped:
 - `fanout` mode: a failure on one PR is recorded and the remaining selections continue; pushed-but-unopened branches are left on the remote for manual recovery
 - `fanout` mode: commits whose patch is already in `<base>` are marked `[MERGED]` and excluded from selection
 - `fanout` mode: commits whose patch matches the head of an open PR (by `git patch-id --stable`) are marked `[EXISTS]` with that PR's URL and excluded from selection
+- `fanout` mode: before pushing, the new branch must be exactly 1 commit ahead of `<base>` (`git rev-list --count <base>..HEAD == 1`); otherwise the branch is deleted locally and the entry goes to `Skipped` — no push, no PR
